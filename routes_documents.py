@@ -17,9 +17,9 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 async def upload_document(
     file: UploadFile = File(...),
     title: str = Form(...),
-    category_ids: Optional[str] = Form("[]"),  # JSON string
-    tags: Optional[str] = Form("[]"),  # JSON string
-    expiry_date: Optional[str] = Form(None),  # ISO format or null
+    category_ids: Optional[str] = Form("[]"),
+    tags: Optional[str] = Form("[]"),
+    expiry_date: Optional[str] = Form(None),
     current_user: TokenData = Depends(get_current_user)
 ):
     """Upload a document"""
@@ -28,30 +28,30 @@ async def upload_document(
     processor = get_document_processor()
     openai_svc = get_openai_service()
     
-    # Parse JSON fields
-   # Parse JSON strings with better error handling
-try:
-    if not category_ids or category_ids == "null" or category_ids.strip() == "":
+    # Parse JSON strings with better error handling
+    try:
+        if not category_ids or category_ids == "null" or category_ids.strip() == "":
+            category_list = []
+        else:
+            category_list = json.loads(category_ids)
+        
+        if not tags or tags == "null" or tags.strip() == "":
+            tags_list = []
+        else:
+            tags_list = json.loads(tags)
+    except (json.JSONDecodeError, AttributeError) as e:
+        logger.error(f"JSON parse error: {e}, category_ids={category_ids}, tags={tags}")
         category_list = []
-    else:
-        category_list = json.loads(category_ids)
-    
-    if not tags or tags == "null" or tags.strip() == "":
         tags_list = []
-    else:
-        tags_list = json.loads(tags)
-except (json.JSONDecodeError, AttributeError) as e:
-    print(f"JSON parse error: {e}, category_ids={category_ids}, tags={tags}")
-    category_list = []
-    tags_list = []
     
     # Validate user has access to these categories
-    user_cats = supabase.table("user_categories").select("category_id").eq("user_id", current_user.user_id).execute()
-    user_category_ids = [item["category_id"] for item in user_cats.data]
-    
-    for cat_id in category_ids_list:
-        if cat_id not in user_category_ids and current_user.role != "admin":
-            raise HTTPException(status_code=403, detail=f"No access to category {cat_id}")
+    if category_list:
+        user_cats = supabase.table("user_categories").select("category_id").eq("user_id", current_user.user_id).execute()
+        user_category_ids = [item["category_id"] for item in user_cats.data]
+        
+        for cat_id in category_list:
+            if cat_id not in user_category_ids and current_user.role != "admin":
+                raise HTTPException(status_code=403, detail=f"No access to category {cat_id}")
     
     # Get file extension
     file_extension = file.filename.split('.')[-1].lower()
@@ -62,7 +62,7 @@ except (json.JSONDecodeError, AttributeError) as e:
     
     # Upload to B2
     try:
-        file_url = storage.upload_file(file, file.filename, file.content_type)
+        file_url = storage.upload_file(file_content, file.filename, file.content_type)
     except Exception as e:
         logger.error(f"Failed to upload file: {e}")
         raise HTTPException(status_code=500, detail="Failed to upload file")
@@ -92,13 +92,14 @@ except (json.JSONDecodeError, AttributeError) as e:
     document_id = doc_result.data[0]["id"]
     
     # Associate with categories
-    category_assignments = [
-        {"document_id": document_id, "category_id": cat_id}
-        for cat_id in category_ids_list
-    ]
-    supabase.table("document_categories").insert(category_assignments).execute()
+    if category_list:
+        category_assignments = [
+            {"document_id": document_id, "category_id": cat_id}
+            for cat_id in category_list
+        ]
+        supabase.table("document_categories").insert(category_assignments).execute()
     
-    # Generate embeddings in background (async task simulation)
+    # Generate embeddings in background
     try:
         chunks = processor.chunk_text(extracted_text, chunk_size=1000)
         
@@ -115,7 +116,6 @@ except (json.JSONDecodeError, AttributeError) as e:
         logger.info(f"Generated {len(chunks)} embeddings for document {document_id}")
     except Exception as e:
         logger.error(f"Failed to generate embeddings: {e}")
-        # Don't fail the upload, just log the error
     
     # Log audit
     supabase.table("audit_log").insert({
@@ -126,7 +126,7 @@ except (json.JSONDecodeError, AttributeError) as e:
     }).execute()
     
     # Get categories for response
-    cat_result = supabase.table("categories").select("*").in_("id", category_ids_list).execute()
+    cat_result = supabase.table("categories").select("*").in_("id", category_list).execute() if category_list else type('obj', (object,), {'data': []})()
     
     return DocumentWithCategories(
         **doc_result.data[0],
@@ -162,13 +162,11 @@ async def list_documents(
     
     # Get user's accessible categories
     if current_user.role == "admin":
-        # Admin sees all documents
         query = supabase.table("documents").select("*")
     else:
         user_cats = supabase.table("user_categories").select("category_id").eq("user_id", current_user.user_id).execute()
         user_category_ids = [item["category_id"] for item in user_cats.data]
         
-        # Get documents in user's categories
         doc_cats = supabase.table("document_categories").select("document_id").in_("category_id", user_category_ids).execute()
         doc_ids = list(set([item["document_id"] for item in doc_cats.data]))
         
@@ -193,17 +191,14 @@ async def list_documents(
     # Enrich with categories and uploader
     documents = []
     for doc in result.data:
-        # Get categories
         cat_result = supabase.table("document_categories").select("category_id").eq("document_id", doc["id"]).execute()
         category_ids_list = [item["category_id"] for item in cat_result.data]
         
-        cats = supabase.table("categories").select("*").in_("id", category_ids_list).execute()
+        cats = supabase.table("categories").select("*").in_("id", category_ids_list).execute() if category_ids_list else type('obj', (object,), {'data': []})()
         
-        # Get uploader
         uploader = supabase.table("users").select("full_name").eq("id", doc["uploaded_by"]).execute()
         uploader_name = uploader.data[0]["full_name"] if uploader.data else "Unknown"
         
-        # Filter by category if specified
         if category_ids:
             filter_cats = category_ids.split(',')
             if not any(cat_id in category_ids_list for cat_id in filter_cats):
@@ -225,7 +220,6 @@ async def get_document(
     """Get specific document"""
     supabase = get_supabase()
     
-    # Check access
     if current_user.role != "admin":
         user_cats = supabase.table("user_categories").select("category_id").eq("user_id", current_user.user_id).execute()
         user_category_ids = [item["category_id"] for item in user_cats.data]
@@ -236,23 +230,19 @@ async def get_document(
         if not any(cat_id in user_category_ids for cat_id in doc_category_ids):
             raise HTTPException(status_code=403, detail="No access to this document")
     
-    # Get document
     result = supabase.table("documents").select("*").eq("id", document_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
     
     doc = result.data[0]
     
-    # Get categories
     cat_result = supabase.table("document_categories").select("category_id").eq("document_id", document_id).execute()
     category_ids_list = [item["category_id"] for item in cat_result.data]
-    cats = supabase.table("categories").select("*").in_("id", category_ids_list).execute()
+    cats = supabase.table("categories").select("*").in_("id", category_ids_list).execute() if category_ids_list else type('obj', (object,), {'data': []})()
     
-    # Get uploader
     uploader = supabase.table("users").select("full_name").eq("id", doc["uploaded_by"]).execute()
     uploader_name = uploader.data[0]["full_name"] if uploader.data else "Unknown"
     
-    # Log view
     supabase.table("audit_log").insert({
         "user_id": current_user.user_id,
         "action": "view",
@@ -274,33 +264,24 @@ async def delete_document(
     supabase = get_supabase()
     storage = get_storage()
     
-    # Get document
     doc_result = supabase.table("documents").select("*").eq("id", document_id).execute()
     if not doc_result.data:
         raise HTTPException(status_code=404, detail="Document not found")
     
     doc = doc_result.data[0]
     
-    # Check permissions (own document or admin)
     if doc["uploaded_by"] != current_user.user_id and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="No permission to delete this document")
     
-    # Delete from storage
     try:
         storage.delete_file(doc["file_url"])
     except Exception as e:
         logger.error(f"Failed to delete file from storage: {e}")
     
-    # Delete embeddings
     supabase.table("document_embeddings").delete().eq("document_id", document_id).execute()
-    
-    # Delete category associations
     supabase.table("document_categories").delete().eq("document_id", document_id).execute()
-    
-    # Delete document
     supabase.table("documents").delete().eq("id", document_id).execute()
     
-    # Log deletion
     supabase.table("audit_log").insert({
         "user_id": current_user.user_id,
         "action": "delete",
