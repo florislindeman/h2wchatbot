@@ -17,8 +17,8 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 async def upload_document(
     file: UploadFile = File(...),
     title: str = Form(...),
-    category_ids: str = Form(...),  # JSON string
-    tags: str = Form("[]"),  # JSON string
+    category_ids: Optional[str] = Form("[]"),  # JSON string
+    tags: Optional[str] = Form("[]"),  # JSON string
     expiry_date: Optional[str] = Form(None),  # ISO format or null
     current_user: TokenData = Depends(get_current_user)
 ):
@@ -29,11 +29,21 @@ async def upload_document(
     openai_svc = get_openai_service()
     
     # Parse JSON fields
-    try:
-        category_ids_list = json.loads(category_ids)
+   # Parse JSON strings with better error handling
+try:
+    if not category_ids or category_ids == "null" or category_ids.strip() == "":
+        category_list = []
+    else:
+        category_list = json.loads(category_ids)
+    
+    if not tags or tags == "null" or tags.strip() == "":
+        tags_list = []
+    else:
         tags_list = json.loads(tags)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON in category_ids or tags")
+except (json.JSONDecodeError, AttributeError) as e:
+    print(f"JSON parse error: {e}, category_ids={category_ids}, tags={tags}")
+    category_list = []
+    tags_list = []
     
     # Validate user has access to these categories
     user_cats = supabase.table("user_categories").select("category_id").eq("user_id", current_user.user_id).execute()
