@@ -85,11 +85,25 @@ def authenticate_user(email: str, password: str):
     supabase = get_supabase()
     result = supabase.table("users").select("*").eq("email", email).eq("is_active", True).execute()
     
+    print(f"DEBUG: Looking for user: {email}")
+    print(f"DEBUG: Found {len(result.data)} users")
+    
     if not result.data:
+        print("DEBUG: No user found")
         return None
     
     user = result.data[0]
-    if not verify_password(password, user["password_hash"]):
+    print(f"DEBUG: User found: {user.get('email')}")
+    print(f"DEBUG: Password hash length: {len(user.get('password_hash', ''))}")
+    
+    # Try to verify password
+    try:
+        password_match = verify_password(password, user["password_hash"])
+        print(f"DEBUG: Password match: {password_match}")
+        if not password_match:
+            return None
+    except Exception as e:
+        print(f"DEBUG: Password verification error: {e}")
         return None
     
     return user
