@@ -72,3 +72,9 @@ async def register_user(user_data: UserCreate):
     
     logger.info(f"New user registered: {user_data.email}")
     return User(**result.data[0])
+@router.post("/generate-hash")
+def generate_hash(password: str):
+    """Temporary endpoint to generate password hash"""
+    from auth import get_password_hash
+    hash = get_password_hash(password)
+    return {"password": password, "hash": hash, "length": len(hash)}
