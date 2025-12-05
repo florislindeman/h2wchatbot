@@ -19,32 +19,29 @@ class B2Storage:
         self.bucket_name = settings.B2_BUCKET_NAME
         logger.info("B2 Storage client initialized")
     
-    def upload_file(self, file_obj: BinaryIO, filename: str, content_type: str) -> str:
-        """Upload file to B2 and return URL"""
-        # Generate unique filename
-        file_extension = filename.split('.')[-1]
-        unique_filename = f"{uuid.uuid4()}.{file_extension}"
+    def upload_file(self, file_content: bytes, filename: str, content_type: str) -> str:
+    """Upload file to B2 and return public URL"""
+    try:
+        # Create a file-like object from bytes
+        from io import BytesIO
+        file_obj = BytesIO(file_content)
         
-        try:
-            self.s3_client.upload_fileobj(
-                file_obj,
-                self.bucket_name,
-                unique_filename,
-                ExtraArgs={
-                    'ContentType': content_type,
-                    'Metadata': {
-                        'original_filename': filename
-                    }
-                }
-            )
-            
-            # Generate URL
-            file_url = f"{settings.B2_ENDPOINT}/{self.bucket_name}/{unique_filename}"
-            logger.info(f"File uploaded successfully: {unique_filename}")
-            return file_url
-        except Exception as e:
-            logger.error(f"Error uploading file: {e}")
-            raise
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_filename = f"{timestamp}_{filename}"
+        
+        # Upload to B2
+        file_info = self.bucket.upload_bytes(
+            file_content,
+            unique_filename,
+            content_type=content_type
+        )
+        
+        # Return public URL
+        return f"{self.endpoint_url}/file/{self.bucket_name}/{unique_filename}"
+    except Exception as e:
+        logger.error(f"Failed to upload to B2: {e}")
+        raise Exception(f"Storage upload failed: {str(e)}")
     
     def delete_file(self, file_url: str):
         """Delete file from B2"""
