@@ -32,6 +32,158 @@ async def ask_question(
     
     # Apply category filters
     if question.category_filters:
+        allowed_categories = [cat for cat in question.category_filters if cat in user_category_ids]
+        if not allowed_categories:
+            allowed_categories = user_category_ids
+    else:
+        allowed_categories = user_category_ids
+    
+    # Generate question embedding
+    try:
+        question_embedding = openai_svc.generate_embedding(question.question)
+    except Exception as e:
+        logger.error(f"Failed to generate embedding: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process question")
+    
+    # Find relevant documents
+    doc_cats = supabase.table("document_categories").select("document_id").in_("category_id", allowed_categories).execute()
+    allowed_doc_ids = list(set([item["document_id"] for item in doc_cats.data]))
+    
+    if not allowed_doc_ids:
+        return ChatResponse(
+            answer="Er zijn nog geen documenten beschikbaar in je categorieën.",
+            confidence=0.0,
+            sources=[]
+        )
+    
+    # Get all embeddings for allowed documents
+    embeddings_result = supabase.table("document_embeddings").select("*").in_("document_id", allowed_doc_ids).execute()
+    
+    if not embeddings_result.data:
+        return ChatResponse(
+            answer="Er zijn nog geen documenten geïndexeerd. Probeer het later opnieuw.",
+            confidence=0.0,
+            sources=[]
+        )
+    
+    # Calculate similarity for all chunks
+    import numpy as np
+    chunk_similarities = []
+    for chunk_data in embeddings_result.data:
+        try:
+            # Convert embedding to numpy array if needed
+            embedding = chunk_data["embedding"]
+            if isinstance(embedding, str):
+                import ast
+                embedding = ast.literal_eval(embedding)
+            if not isinstance(embedding, np.ndarray):
+                embedding = np.array(embedding)
+            
+            similarity = OpenAIService.cosine_similarity(question_embedding, embedding)
+            
+            if similarity > 0.7:
+                chunk_similarities.append({
+                    "document_id": chunk_data["document_id"],
+                    "chunk_text": chunk_data["chunk_text"],
+                    "similarity": similarity
+                })
+        except Exception as e:
+            logger.error(f"Error calculating similarity: {e}")
+            continue
+    
+    # Sort by similarity and take top 5
+    chunk_similarities.sort(key=lambda x: x["similarity"], reverse=True)
+    top_chunks = chunk_similarities[:5]
+    
+    if not top_chunks:
+        supabase.table("chat_history").insert({
+            "user_id": current_user.user_id,
+            "question": question.question,
+            "answer": "Ik kan deze vraag niet beantwoorden op basis van de beschikbare documenten.",
+            "confidence_score": 0.0,
+            "source_documents": []
+        }).execute()
+        
+        return ChatResponse(
+            answer="Ik kan helaas geen relevant antwoord vinden in de beschikbare documenten.",
+            confidence=0.0,
+            sources=[]
+        )
+    
+    # Get document info for top chunks
+    doc_ids = list(set([chunk["document_id"] for chunk in top_chunks]))
+    docs_result = supabase.table("documents").select("*").in_("id", doc_ids).execute()
+    docs_map = {doc["id"]: doc for doc in docs_result.data}
+    
+    # Apply additional filters
+    filtered_chunks = []
+    for chunk in top_chunks:
+        doc = docs_map.get(chunk["document_id"])
+        if not doc:
+            continue
+        
+        if question.date_filter_start and datetime.fromisoformat(doc["upload_date"]) < question.date_filter_start:
+            continue
+        if question.date_filter_end and datetime.fromisoformat(doc["upload_date"]) > question.date_filter_end:
+            continue
+        
+        if question.file_type_filters and doc["file_type"] not in question.file_type_filters:
+            continue
+        
+        if doc.get("expiry_date") and datetime.fromisoformat(doc["expiry_date"]) < datetime.now():
+            continue
+        
+        chunk["document_title"] = doc["title"]
+        chunk["document_url"] = doc["file_url"]
+        chunk["file_type"] = doc["file_type"]
+        filtered_chunks.append(chunk)
+    
+    if not filtered_chunks:
+        return ChatResponse(
+            answer="Geen documenten gevonden die voldoen aan je filters.",
+            confidence=0.0,
+            sources=[]
+        )
+    
+    # Generate answer using OpenAI
+    try:
+        answer, confidence = openai_svc.generate_answer(question.question, filtered_chunks)
+    except Exception as e:
+        logger.error(f"Failed to generate answer: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate answer")
+    
+    # Collect unique source documents
+    sources = []
+    seen_doc_ids = set()
+    for chunk in filtered_chunks:
+        if chunk["document_id"] not in seen_doc_ids:
+            sources.append(SourceDocument(
+                document_id=chunk["document_id"],
+                document_title=chunk["document_title"],
+                document_url=chunk["document_url"],
+                file_type=chunk["file_type"]
+            ))
+            seen_doc_ids.add(chunk["document_id"])
+    
+    # Save chat history
+    supabase.table("chat_history").insert({
+        "user_id": current_user.user_id,
+        "question": question.question,
+        "answer": answer,
+        "confidence_score": confidence,
+        "source_documents": [s.model_dump() for s in sources]
+    }).execute()
+    
+    logger.info(f"Question answered with {confidence}% confidence, {len(sources)} sources")
+    
+    return ChatResponse(
+        answer=answer,
+        confidence=confidence,
+        sources=sources
+    )
+    
+    # Apply category filters
+    if question.category_filters:
         # Filter to only categories user has access to
         allowed_categories = [cat for cat in question.category_filters if cat in user_category_ids]
         if not allowed_categories:
