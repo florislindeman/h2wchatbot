@@ -68,10 +68,18 @@ async def ask_question(
             sources=[]
         )
     
-    # Calculate similarity for all chunks
-    chunk_similarities = []
-    for chunk_data in embeddings_result.data:
-        similarity = OpenAIService.cosine_similarity(question_embedding, chunk_data["embedding"])
+ # Calculate similarity for all chunks
+chunk_similarities = []
+for chunk_data in embeddings_result.data:
+    # Convert embedding from PostgreSQL vector to list
+    embedding = chunk_data["embedding"]
+    if isinstance(embedding, str):
+        # If it's a string representation, parse it
+        import ast
+        embedding = ast.literal_eval(embedding)
+    
+    try:
+        similarity = OpenAIService.cosine_similarity(question_embedding, embedding)
         
         if similarity > 0.7:  # Threshold
             chunk_similarities.append({
@@ -79,6 +87,9 @@ async def ask_question(
                 "chunk_text": chunk_data["chunk_text"],
                 "similarity": similarity
             })
+    except Exception as e:
+        logger.error(f"Error calculating similarity for chunk: {e}")
+        continue
     
     # Sort by similarity and take top 5
     chunk_similarities.sort(key=lambda x: x["similarity"], reverse=True)
