@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
-
+    
     # AI Configuration
     OPENAI_MODEL: str = "gpt-4o"
     AI_TEMPERATURE: float = 0.2
@@ -46,4 +46,4 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
-settings = Settings()
+settings = Settings()  # ← LET OP: Deze regel moet HELEMAAL LINKS (0 spaties)
