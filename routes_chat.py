@@ -62,7 +62,7 @@ async def ask_question(
             sources=[]
         )
     
-    chunk_similarities = []
+    chunk_similarities = [:10]
     for chunk_data in embeddings_result.data:
         try:
             embedding = chunk_data["embedding"]
