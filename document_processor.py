@@ -112,7 +112,7 @@ class DocumentProcessor:
             return ""
     
     @staticmethod
-    def chunk_text(text: str, chunk_size: int = 1000) -> list[str]:
+    def chunk_text(text: str, chunk_size: int = 1500) -> list[str]:
         """Split text into chunks of approximately chunk_size words"""
         words = text.split()
         chunks = []
