@@ -26,14 +26,14 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
 
-# AI Configuration
-OPENAI_MODEL: str = "gpt-4o"
-AI_TEMPERATURE: float = 0.2
-MAX_TOKENS: int = 1000
-CHUNK_SIZE: int = 1500
-CHUNK_OVERLAP: int = 200
-TOP_K_CHUNKS: int = 8
-SIMILARITY_THRESHOLD: float = 0.65
+    # AI Configuration
+    OPENAI_MODEL: str = "gpt-4o"
+    AI_TEMPERATURE: float = 0.2
+    MAX_TOKENS: int = 1000
+    CHUNK_SIZE: int = 1500
+    CHUNK_OVERLAP: int = 200
+    TOP_K_CHUNKS: int = 8
+    SIMILARITY_THRESHOLD: float = 0.65
     
     # Environment
     ENVIRONMENT: str = "development"
