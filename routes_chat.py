@@ -85,7 +85,7 @@ async def ask_question(
             continue
     
     chunk_similarities.sort(key=lambda x: x["similarity"], reverse=True)
-    top_chunks = chunk_similarities[:5]
+    top_chunks = chunk_similarities[:8]
     
     if not top_chunks:
         supabase.table("chat_history").insert({
