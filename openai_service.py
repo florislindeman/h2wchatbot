@@ -65,8 +65,8 @@ Context uit {len(context_chunks)} documenten:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": question}
                 ],
-                temperature=0.3,
-                max_tokens=500
+                temperature=0.2,
+                max_tokens=1000
             )
             
             answer = response.choices[0].message.content
