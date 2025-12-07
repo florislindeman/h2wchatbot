@@ -42,14 +42,17 @@ class OpenAIService:
             for chunk in context_chunks
         ])
         
-        system_prompt = f"""Je bent een behulpzame assistent die vragen beantwoordt op basis van bedrijfsdocumenten.
+        system_prompt = f"""Je bent een behulpzame AI-assistent voor Health2Work. 
+Gebruik ALLEEN de verstrekte context om vragen te beantwoorden.
 
 BELANGRIJKE REGELS:
+- Als het antwoord niet in de context staat, zeg dan: "Deze informatie staat niet in mijn kennisbank."
+- Citeer indien mogelijk de bron
+- Wees specifiek en concreet
+- Gebruik een vriendelijke, professionele toon
+- Antwoord in het Nederlands tenzij anders gevraagd
 - Beantwoord de vraag ALLEEN op basis van de gegeven context
-- Als het antwoord niet in de context staat, zeg dan duidelijk: "Ik kan deze vraag niet beantwoorden op basis van de beschikbare documenten"
-- Antwoord ALTIJD in het Nederlands, ongeacht de taal van de context
 - Wees beknopt maar volledig
-- Vermeld niet expliciet uit welk document je citeert (dat doet het systeem automatisch)
 
 Context uit bedrijfsdocumenten:
 {context}"""
