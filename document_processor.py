@@ -111,29 +111,21 @@ class DocumentProcessor:
             logger.warning(f"Unsupported file type: {file_type}")
             return ""
     
-    @staticmethod
-    def chunk_text(text: str, chunk_size: int = 1500) -> list[str]:
-        """Split text into chunks of approximately chunk_size words"""
-        words = text.split()
-        chunks = []
-        current_chunk = []
-        current_size = 0
-        
-        for word in words:
-            current_chunk.append(word)
-            current_size += 1
-            
-            if current_size >= chunk_size:
-                chunks.append(" ".join(current_chunk))
-                current_chunk = []
-                current_size = 0
-        
-        # Add remaining words
-        if current_chunk:
-            chunks.append(" ".join(current_chunk))
-        
-        logger.info(f"Split text into {len(chunks)} chunks")
-        return chunks
+   @staticmethod
+def chunk_text(text: str, chunk_size: int = 1500, overlap: int = 150) -> list[str]:
+    """Split text into chunks with overlap"""
+    words = text.split()
+    chunks = []
+    start = 0
+    
+    while start < len(words):
+        end = start + chunk_size
+        chunk_words = words[start:end]
+        chunks.append(" ".join(chunk_words))
+        start = end - overlap  # Overlap van 150 woorden
+    
+    logger.info(f"Split text into {len(chunks)} chunks with overlap")
+    return chunks
 
 # Singleton instance
 document_processor = DocumentProcessor()
