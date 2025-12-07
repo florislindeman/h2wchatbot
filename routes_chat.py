@@ -74,7 +74,7 @@ async def ask_question(
             
             similarity = OpenAIService.cosine_similarity(question_embedding, embedding)
             
-            if similarity > 0.7:
+            if similarity > 0.65:
                 chunk_similarities.append({
                     "document_id": chunk_data["document_id"],
                     "chunk_text": chunk_data["chunk_text"],
