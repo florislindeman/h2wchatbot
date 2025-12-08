@@ -74,7 +74,7 @@ async def ask_question(
             
             similarity = OpenAIService.cosine_similarity(question_embedding, embedding)
             
-            if similarity > 0.65:
+            if similarity > 0.6:
                 chunk_similarities.append({
                     "document_id": chunk_data["document_id"],
                     "chunk_text": chunk_data["chunk_text"],
@@ -85,7 +85,7 @@ async def ask_question(
             continue
     
     chunk_similarities.sort(key=lambda x: x["similarity"], reverse=True)
-    top_chunks = chunk_similarities[:8]
+    top_chunks = chunk_similarities[:12]
     
     if not top_chunks:
         supabase.table("chat_history").insert({
