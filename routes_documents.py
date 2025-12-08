@@ -212,6 +212,33 @@ async def list_documents(
     
     return documents
 
+@router.get("/my-documents", response_model=List[DocumentWithCategories])
+async def get_my_documents(
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Get documents uploaded by current user"""
+    supabase = get_supabase()
+    
+    # Get documents uploaded by this user
+    query = supabase.table("documents").select("*").eq("uploaded_by", current_user.user_id)
+    result = query.execute()
+    
+    # Enrich with categories
+    documents = []
+    for doc in result.data:
+        cat_result = supabase.table("document_categories").select("category_id").eq("document_id", doc["id"]).execute()
+        category_ids_list = [item["category_id"] for item in cat_result.data]
+        
+        cats = supabase.table("categories").select("*").in_("id", category_ids_list).execute() if category_ids_list else type('obj', (object,), {'data': []})()
+        
+        documents.append(DocumentWithCategories(
+            **doc,
+            categories=cats.data,
+            uploader_name=current_user.email
+        ))
+    
+    return documents
+
 @router.get("/{document_id}", response_model=DocumentWithCategories)
 async def get_document(
     document_id: str,
