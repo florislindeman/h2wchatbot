@@ -112,7 +112,7 @@ class DocumentProcessor:
             return ""
     
 @staticmethod
-def chunk_text(text: str, chunk_size: int = 1500, overlap: int = 200) -> list[str]:
+def chunk_text(text: str, chunk_size: int = 1500, overlap: int = 300) -> list[str]:
     """
     Split text into overlapping chunks for better context preservation
     
