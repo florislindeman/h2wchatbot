@@ -20,34 +20,37 @@ async def ask_question(
     supabase = get_supabase()
     openai_svc = get_openai_service()
     
-    # Get user's accessible documents
-    user_cats = supabase.table("user_categories").select("category_id").eq("user_id", current_user.user_id).execute()
-    user_category_ids = [item["category_id"] for item in user_cats.data]
-    
-    if not user_category_ids:
-        return ChatResponse(
-            answer="Je hebt nog geen toegang tot documentcategorieën.",
-            confidence=0.0,
-            sources=[]
-        )
-    
-    # Get ALL accessible document IDs
-    doc_cats = supabase.table("document_categories").select("document_id").in_("category_id", user_category_ids).execute()
-    allowed_doc_ids = list(set([item["document_id"] for item in doc_cats.data]))
-    
-    if not allowed_doc_ids:
-        return ChatResponse(
-            answer="Er zijn nog geen documenten beschikbaar.",
-            confidence=0.0,
-            sources=[]
-        )
-    
-    # Get ALL documents (no filtering)
-    docs_result = supabase.table("documents").select("*").in_("id", allowed_doc_ids).execute()
+    # Admins get ALL documents, regular users get filtered by category
+    if current_user.role == "admin":
+        # Admin: Get ALL documents
+        docs_result = supabase.table("documents").select("*").execute()
+    else:
+        # Regular user: Filter by accessible categories
+        user_cats = supabase.table("user_categories").select("category_id").eq("user_id", current_user.user_id).execute()
+        user_category_ids = [item["category_id"] for item in user_cats.data]
+        
+        if not user_category_ids:
+            return ChatResponse(
+                answer="Je hebt nog geen toegang tot documentcategorieën.",
+                confidence=0.0,
+                sources=[]
+            )
+        
+        doc_cats = supabase.table("document_categories").select("document_id").in_("category_id", user_category_ids).execute()
+        allowed_doc_ids = list(set([item["document_id"] for item in doc_cats.data]))
+        
+        if not allowed_doc_ids:
+            return ChatResponse(
+                answer="Er zijn nog geen documenten beschikbaar.",
+                confidence=0.0,
+                sources=[]
+            )
+        
+        docs_result = supabase.table("documents").select("*").in_("id", allowed_doc_ids).execute()
     
     if not docs_result.data:
         return ChatResponse(
-            answer="Geen documenten gevonden.",
+            answer="Er zijn nog geen documenten beschikbaar.",
             confidence=0.0,
             sources=[]
         )
