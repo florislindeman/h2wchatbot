@@ -30,7 +30,12 @@ async def login(login_data: LoginRequest):
     )
     
     logger.info(f"User logged in: {user['email']}")
-    return Token(access_token=access_token)
+    return Token(
+    access_token=access_token,
+    token_type="bearer",
+    email=user["email"],
+    role=user["role"]
+)
 
 @router.post("/register", response_model=User, dependencies=[Depends(get_current_admin)])
 async def register_user(user_data: UserCreate):
