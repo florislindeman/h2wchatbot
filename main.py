@@ -9,6 +9,7 @@ from routes_users import router as users_router
 from routes_documents import router as documents_router
 from routes_chat import router as chat_router
 from routes_admin import router as admin_router
+from routes_categories import router as categories_router
 
 # Configure logging
 logging.basicConfig(
@@ -39,6 +40,7 @@ app.include_router(users_router)
 app.include_router(documents_router)
 app.include_router(chat_router)
 app.include_router(admin_router)
+app.include_router(categories_router)
 
 @app.get("/")
 async def root():
