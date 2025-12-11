@@ -282,6 +282,56 @@ async def get_document(
         uploader_name=uploader_name
     )
 
+@router.put("/{document_id}")
+async def update_document(
+    document_id: str,
+    doc_update: DocumentUpdate,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Update document details and categories"""
+    supabase = get_supabase()
+    
+    # Check document exists
+    doc_result = supabase.table("documents").select("*").eq("id", document_id).execute()
+    if not doc_result.data:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    doc = doc_result.data[0]
+    
+    # Check permissions (admin can edit any, users can only edit their own)
+    if doc["uploaded_by"] != current_user.user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="No permission to update this document")
+    
+    # Update document fields (excluding category_ids)
+    update_data = doc_update.model_dump(exclude_unset=True, exclude={"category_ids"})
+    
+    if update_data:
+        supabase.table("documents").update(update_data).eq("id", document_id).execute()
+    
+    # Update categories if provided
+    if doc_update.category_ids is not None:
+        # Delete existing category assignments
+        supabase.table("document_categories").delete().eq("document_id", document_id).execute()
+        
+        # Add new assignments
+        if doc_update.category_ids:
+            category_assignments = [
+                {"document_id": document_id, "category_id": cat_id}
+                for cat_id in doc_update.category_ids
+            ]
+            supabase.table("document_categories").insert(category_assignments).execute()
+    
+    # Log audit
+    supabase.table("audit_log").insert({
+        "user_id": current_user.user_id,
+        "action": "update",
+        "document_id": document_id,
+        "details": {"updated_fields": list(update_data.keys()) if update_data else ["categories"]}
+    }).execute()
+    
+    logger.info(f"Document updated: {document_id}")
+    return {"message": "Document updated successfully"}
+
 @router.delete("/{document_id}")
 async def delete_document(
     document_id: str,
