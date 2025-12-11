@@ -10,7 +10,6 @@ from routes_documents import router as documents_router
 from routes_chat import router as chat_router
 from routes_admin import router as admin_router
 from routes_categories import router as categories_router
-from routes_users import router as users_router
 
 # Configure logging
 logging.basicConfig(
@@ -26,10 +25,17 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
+# Configure CORS - EXPLICIT ORIGINS FOR SECURITY
+origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://h2w-frontend.vercel.app",
+    "https://h2wchatbot-production.up.railway.app"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=origins,  # Use explicit list instead of settings
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +48,6 @@ app.include_router(documents_router)
 app.include_router(chat_router)
 app.include_router(admin_router)
 app.include_router(categories_router)
-app.include_router(users_router)
 
 @app.get("/")
 async def root():
