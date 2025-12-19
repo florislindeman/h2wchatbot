@@ -30,7 +30,7 @@ origins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "https://h2w-frontend.vercel.app",
-    "https://h2wchatbot-production.up.railway.app"
+    "https://h2wchatbot-production.up.railway.app",
     "https://ncg.3xai.nl",
 ]
 
