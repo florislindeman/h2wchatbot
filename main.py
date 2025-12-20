@@ -43,12 +43,12 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth_router)
-app.include_router(users_router)
-app.include_router(documents_router)
-app.include_router(chat_router)
-app.include_router(admin_router)
-app.include_router(categories_router)
+app.include_router(auth_router, prefix="/api")
+app.include_router(users_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
+app.include_router(categories_router, prefix="/api")
 
 @app.get("/")
 async def root():
