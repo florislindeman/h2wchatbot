@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
-@router.post("@router.post("", response_model=ChatResponse)/ask", response_model=ChatResponse)
+@router.post("/ask", response_model=ChatResponse)
 async def ask_question(
     question: ChatQuestion,
     current_user: TokenData = Depends(get_current_user)
