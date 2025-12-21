@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
-from fastapi.responses import Response
 from typing import List, Optional
 from models import Document, DocumentCreate, DocumentUpdate, DocumentWithCategories, TagSuggestionRequest
 from auth import get_current_user, get_current_admin, TokenData
@@ -369,50 +368,3 @@ async def delete_document(
     
     logger.info(f"Document deleted: {document_id}")
     return {"message": "Document deleted successfully"}
-# VOEG TOE AAN routes_documents.py (onderaan, na delete endpoint)
-
-@router.get("/{document_id}/download")
-async def download_document(
-    document_id: str,
-    current_user: TokenData = Depends(get_current_user)
-):
-    """Download document file with permission check"""
-    from fastapi.responses import Response
-    
-    supabase = get_supabase()
-    storage = get_storage()
-    
-    # Get document
-    doc_result = supabase.table("documents").select("*").eq("id", document_id).execute()
-    if not doc_result.data:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    doc = doc_result.data[0]
-    
-    # Permission check: Admin can download all, users can only download their own
-    if current_user.role != "admin" and doc["uploaded_by"] != current_user.user_id:
-        raise HTTPException(status_code=403, detail="No permission to download this document")
-    
-    # Get file from storage
-    try:
-        file_content = storage.get_file(doc["file_url"])  # Gebruik bestaande get_file() methode
-        
-        # Log audit
-        supabase.table("audit_log").insert({
-            "user_id": current_user.user_id,
-            "action": "download",
-            "document_id": document_id,
-            "details": {"filename": doc["file_name"]}
-        }).execute()
-        
-        # Return file with proper headers
-        return Response(
-            content=file_content,
-            media_type=doc["file_type"] or "application/octet-stream",
-            headers={
-                "Content-Disposition": f'attachment; filename="{doc["file_name"]}"'
-            }
-        )
-    except Exception as e:
-        logger.error(f"Failed to download file: {e}")
-        raise HTTPException(status_code=500, detail="Failed to download file")
