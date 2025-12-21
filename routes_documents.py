@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
+from fastapi.responses import Response
 from typing import List, Optional
 from models import Document, DocumentCreate, DocumentUpdate, DocumentWithCategories, TagSuggestionRequest
 from auth import get_current_user, get_current_admin, TokenData
