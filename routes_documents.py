@@ -216,8 +216,11 @@ async def list_documents(
                 
                 cats = supabase.table("categories").select("*").in_("id", category_ids_list).execute() if category_ids_list else type('obj', (object,), {'data': []})()
                 
-                uploader = supabase.table("users").select("full_name").eq("id", doc["uploaded_by"]).execute()
-                uploader_name = uploader.data[0]["full_name"] if uploader.data else "Unknown"
+                # ✅ FIX: Handle None uploaded_by
+                uploader_name = "Unknown"
+                if doc.get("uploaded_by"):
+                    uploader = supabase.table("users").select("full_name").eq("id", doc["uploaded_by"]).execute()
+                    uploader_name = uploader.data[0]["full_name"] if uploader.data else "Unknown"
                 
                 if category_ids:
                     filter_cats = category_ids.split(',')
@@ -261,6 +264,12 @@ async def get_my_documents(
                 
                 cats = supabase.table("categories").select("*").in_("id", category_ids_list).execute() if category_ids_list else type('obj', (object,), {'data': []})()
                 
+                # ✅ FIX: Handle None uploaded_by
+                uploader_name = current_user.email
+                if doc.get("uploaded_by") and doc["uploaded_by"] != current_user.user_id:
+                    uploader_result = supabase.table("users").select("full_name,email").eq("id", doc["uploaded_by"]).execute()
+                    if uploader_result.data:
+                        uploader_name = uploader_result.data[0].get("full_name") or uploader_result.data[0].get("email", "Unknown")
                 documents.append(DocumentWithCategories(
                     **doc,
                     categories=cats.data,
@@ -305,8 +314,11 @@ async def get_document(
         category_ids_list = [item["category_id"] for item in cat_result.data]
         cats = supabase.table("categories").select("*").in_("id", category_ids_list).execute() if category_ids_list else type('obj', (object,), {'data': []})()
         
-        uploader = supabase.table("users").select("full_name").eq("id", doc["uploaded_by"]).execute()
-        uploader_name = uploader.data[0]["full_name"] if uploader.data else "Unknown"
+        # ✅ FIX: Handle None uploaded_by
+        uploader_name = "Unknown"
+        if doc.get("uploaded_by"):
+            uploader = supabase.table("users").select("full_name").eq("id", doc["uploaded_by"]).execute()
+            uploader_name = uploader.data[0]["full_name"] if uploader.data else "Unknown"
         
         supabase.table("audit_log").insert({
             "user_id": current_user.user_id,
