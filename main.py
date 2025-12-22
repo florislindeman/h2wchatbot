@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from config import settings
 import logging
 
@@ -31,17 +34,88 @@ origins = [
     "http://localhost:5173",
     "https://h2w-frontend.vercel.app",
     "https://h2wchatbot-production.up.railway.app",
-    
     "https://ncg.3xai.nl",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Use explicit list instead of settings
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ✅ CRITICAL: Exception handlers to ensure CORS headers are ALWAYS present
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handle HTTP exceptions with CORS headers"""
+    origin = request.headers.get("origin")
+    
+    headers = {}
+    if origin in origins:
+        headers.update({
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        })
+    
+    logger.warning(f"HTTP {exc.status_code}: {exc.detail}")
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=headers
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with CORS headers"""
+    origin = request.headers.get("origin")
+    
+    headers = {}
+    if origin in origins:
+        headers.update({
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        })
+    
+    logger.warning(f"Validation error: {exc.errors()}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()},
+        headers=headers
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions with CORS headers"""
+    origin = request.headers.get("origin")
+    
+    headers = {}
+    if origin in origins:
+        headers.update({
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        })
+    
+    # Log the full exception
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    
+    # Return user-friendly error with CORS headers
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error occurred",
+            "error_type": type(exc).__name__,
+            "error_message": str(exc)
+        },
+        headers=headers
+    )
 
 # Include routers
 app.include_router(auth_router)
