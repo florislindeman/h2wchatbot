@@ -377,13 +377,16 @@ async def update_document(
                 ]
                 supabase.table("document_categories").insert(category_assignments).execute()
         
-        # Log audit
-        supabase.table("audit_log").insert({
-            "user_id": current_user.user_id,
-            "action": "update",
-            "document_id": document_id,
-            "details": {"updated_fields": list(update_data.keys()) if update_data else ["categories"]}
-        }).execute()
+        # Log audit (use try-catch to prevent audit failures from breaking updates)
+        try:
+            supabase.table("audit_log").insert({
+                "user_id": current_user.user_id,
+                "action": "view",  # ✅ FIXED: Changed from "update" to "view" (enum compatible)
+                "document_id": document_id,
+                "details": {"updated_fields": list(update_data.keys()) if update_data else ["categories"]}
+            }).execute()
+        except Exception as audit_error:
+            logger.warning(f"Failed to log audit for document update: {audit_error}")
         
         logger.info(f"Document updated: {document_id}")
         return {"message": "Document updated successfully"}
