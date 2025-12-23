@@ -66,6 +66,33 @@ class B2Storage:
             logger.error(f"Error downloading file: {e}")
             raise
 
+def download_file(self, file_url: str) -> bytes:
+    """Download a file from Supabase storage"""
+    try:
+        # Extract bucket and path from file_url
+        # Example URL: https://[project].supabase.co/storage/v1/object/public/documents/uuid-filename.pdf
+        
+        # Parse the URL to get bucket and file path
+        parts = file_url.split('/storage/v1/object/public/')
+        if len(parts) != 2:
+            raise ValueError(f"Invalid file URL format: {file_url}")
+        
+        path_parts = parts[1].split('/', 1)
+        if len(path_parts) != 2:
+            raise ValueError(f"Could not extract bucket and path from URL: {file_url}")
+        
+        bucket_name = path_parts[0]
+        file_path = path_parts[1]
+        
+        # Download from Supabase storage
+        response = self.client.storage.from_(bucket_name).download(file_path)
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Failed to download file from {file_url}: {e}")
+        raise Exception(f"Failed to download file: {str(e)}")
+
 # Singleton instance
 b2_storage = B2Storage()
 
