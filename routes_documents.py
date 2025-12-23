@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from models import Document, DocumentCreate, DocumentUpdate, DocumentWithCategories, TagSuggestionRequest
 from auth import get_current_user, get_current_admin, TokenData
@@ -9,6 +10,7 @@ from openai_service import get_openai_service
 import logging
 import json
 from datetime import datetime
+import io
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -440,3 +442,79 @@ async def delete_document(
     except Exception as e:
         logger.error(f"Error in delete_document: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
+
+@router.get("/{document_id}/download")
+async def download_document(
+    document_id: str,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Download a document file"""
+    try:
+        supabase = get_supabase()
+        storage = get_storage()
+        
+        # Get document info
+        doc_result = supabase.table("documents").select("*").eq("id", document_id).execute()
+        if not doc_result.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        doc = doc_result.data[0]
+        
+        # Check permissions (user must have access to document's categories OR be admin OR be owner)
+        if current_user.role != "admin" and doc.get("uploaded_by") != current_user.user_id:
+            # Check if user has access to any of the document's categories
+            doc_cats = supabase.table("document_categories").select("category_id").eq("document_id", document_id).execute()
+            doc_category_ids = [cat["category_id"] for cat in doc_cats.data] if doc_cats.data else []
+            
+            if doc_category_ids:
+                user_cats = supabase.table("user_categories").select("category_id").eq("user_id", current_user.user_id).execute()
+                user_category_ids = [cat["category_id"] for cat in user_cats.data] if user_cats.data else []
+                
+                # Check if user has access to at least one category
+                has_access = any(cat_id in user_category_ids for cat_id in doc_category_ids)
+                if not has_access:
+                    raise HTTPException(status_code=403, detail="No permission to download this document")
+        
+        # Get file from storage
+        file_content = storage.download_file(doc["file_url"])
+        
+        # Log download action
+        try:
+            supabase.table("audit_log").insert({
+                "user_id": current_user.user_id,
+                "action": "view",  # Use 'view' as download action
+                "document_id": document_id,
+                "details": {"action_type": "download", "filename": doc["file_name"]}
+            }).execute()
+        except Exception as audit_error:
+            logger.warning(f"Failed to log download audit: {audit_error}")
+        
+        # Determine content type based on file extension
+        file_ext = doc["file_name"].split(".")[-1].lower() if "." in doc["file_name"] else ""
+        content_types = {
+            "pdf": "application/pdf",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "doc": "application/msword",
+            "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "xls": "application/vnd.ms-excel",
+            "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "ppt": "application/vnd.ms-powerpoint",
+            "txt": "text/plain",
+        }
+        content_type = content_types.get(file_ext, "application/octet-stream")
+        
+        # Return file as streaming response
+        logger.info(f"Document downloaded: {document_id} by user {current_user.user_id}")
+        return StreamingResponse(
+            io.BytesIO(file_content),
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{doc["file_name"]}"'
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in download_document: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to download document: {str(e)}")
