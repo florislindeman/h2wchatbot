@@ -24,7 +24,34 @@ class Settings(BaseSettings):
     # API
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://ncg.3xai.nl,https://h2w-frontend-git-main-floris-lindemans-projects.vercel.app"
+
+---
+
+## 💾 COMMIT DE WIJZIGING
+
+**Scroll naar beneden in GitHub editor:**
+
+1. **Commit message**: `fix: add production domains to CORS whitelist`
+2. **Klik "Commit changes"**
+3. **Railway deploy automatisch!**
+
+---
+
+## ⏱️ WACHT OP DEPLOYMENT
+
+**In Railway dashboard:**
+1. Klik op **"Deployments"** tab
+2. Je ziet een nieuwe deployment starten
+3. Wacht tot het **groen vinkje** verschijnt (2-3 minuten)
+
+---
+
+## 🧪 TEST DIRECT NA DEPLOYMENT
+
+**Open:**
+```
+https://h2w-frontend-git-main-floris-lindemans-projects.vercel.app/login
     
     # AI Configuration
     OPENAI_MODEL: str = "gpt-4o"
