@@ -28,14 +28,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS - EXPLICIT ORIGINS FOR SECURITY
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://h2w-frontend.vercel.app",
-    "https://h2wchatbot-production.up.railway.app",
-    "https://ncg.3xai.nl",
-]
+# Use CORS origins from environment variable
+origins = settings.cors_origins_list
 
 app.add_middleware(
     CORSMiddleware,
